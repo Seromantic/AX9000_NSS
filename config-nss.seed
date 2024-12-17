@@ -1,0 +1,95 @@
+# Choose your router
+CONFIG_TARGET_qualcommax=y
+CONFIG_TARGET_qualcommax_ipq807x=y
+CONFIG_TARGET_qualcommax_ipq807x_DEVICE_xiaomi_ax9000=y
+CONFIG_EXPERIMENTAL=y
+CONFIG_DEVEL=y
+
+
+# NSS Offloading
+# CONFIG_NSS_FIRMWARE_VERSION_12_5=y
+CONFIG_ATH11K_NSS_SUPPORT=y
+CONFIG_ATH11K_NSS_MESH_SUPPORT=y
+CONFIG_PACKAGE_MAC80211_NSS_SUPPORT=y
+CONFIG_PACKAGE_kmod-qca-nss-drv-bridge-mgr=y
+
+
+# Target dependant config
+CONFIG_ATH11K_MEM_PROFILE_512M=y
+CONFIG_NSS_MEM_PROFILE_HIGH=y
+
+
+# Additional NSS packages (VLAN, Multicast Snooping)
+CONFIG_PACKAGE_kmod-qca-mcs=y
+CONFIG_PACKAGE_kmod-qca-nss-drv-pppoe=y
+CONFIG_PACKAGE_kmod-qca-nss-drv-vlan-mgr=y
+
+
+# Disable Ath10k
+CONFIG_PACKAGE_ath10k-firmware-qca9887=n
+CONFIG_PACKAGE_kmod-ath10k=n
+CONFIG_ATH10K_LEDS=n
+
+
+# Compiler Optimization
+CONFIG_TOOLCHAINOPTS=y
+CONFIG_TARGET_OPTIONS=y
+CONFIG_TARGET_OPTIMIZATION="-O2 -pipe -mcpu=cortex-a53+crc+crypto"
+CONFIG_GCC_USE_VERSION_14=y
+CONFIG_GCC_VERSION_14=y
+CONFIG_BINUTILS_USE_VERSION_2_43=y
+CONFIG_BUILD_PATENTED=y
+CONFIG_USE_GC_SECTIONS=y
+CONFIG_GCC_USE_GRAPHITE=y
+CONFIG_USE_LTO=y
+CONFIG_USE_MOLD=y
+
+
+# Hardening build options
+CONFIG_PKG_ASLR_PIE_ALL=y
+CONFIG_GCC_DEFAULT_PIE=y
+CONFIG_PKG_CC_STACKPROTECTOR_STRONG=y
+CONFIG_KERNEL_CC_STACKPROTECTOR_STRONG=y
+CONFIG_PKG_FORTIFY_SOURCE_2=y
+
+
+# Reduce kernel module size
+# Disable unnecessary debugging for Wi-Fi driver.
+CONFIG_ATH11K_DEBUGFS_HTT_STATS=n
+CONFIG_ATH11K_DEBUGFS_STA=n
+# Disables thermal throttling support for ath11k.
+CONFIG_ATH11K_THERMAL=n
+
+
+# SSL Configuration
+CONFIG_PACKAGE_libustream-openssl=y
+CONFIG_PACKAGE_libustream-mbedtls=n
+CONFIG_PACKAGE_apk-mbedtls=n
+CONFIG_PACKAGE_apk-openssl=y
+CONFIG_PACKAGE_libopenssl=y
+CONFIG_LUA_ECO_OPENSSL=y
+CONFIG_OPENSSL_OPTIMIZE_SPEED=y
+
+
+# Library Optimization
+CONFIG_ZLIB_OPTIMIZE_SPEED=y
+CONFIG_ZSTD_OPTIMIZE_O3=y
+
+
+# LUCI Config
+CONFIG_PACKAGE_luci=y
+CONFIG_PACKAGE_luci-ssl-openssl=y
+#CONFIG_PACKAGE_wpad-basic-openssl=y
+CONFIG_PACKAGE_wpad-mesh-openssl=y
+CONFIG_PACKAGE_wpad-basic-mbedtls=n
+
+# Prevent opkg from adding custom feeds to /etc/opkg/distfeeds.conf
+CONFIG_FEED_nss_packages=n
+CONFIG_FEED_sqm_scripts_nss=n
+
+CONFIG_PACKAGE_kmod-phy-aquantia=n
+CONFIG_PACKAGE_kmod-usb-core=n
+CONFIG_PACKAGE_kmod-usb-dwc3=n
+CONFIG_PACKAGE_kmod-usb-dwc3-qcom=n
+CONFIG_PACKAGE_kmod-usb-xhci-hcd=n
+CONFIG_PACKAGE_kmod-usb3=n
