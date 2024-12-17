@@ -9,7 +9,7 @@ on:
 env:
   REMOTE_REPOSITORY: qosmio/openwrt-ipq
   REMOTE_BRANCH: main-nss
-  CONFIG_FILE: ax3600.config
+  CONFIG_FILE: ax9000.config
   CUSTOM_FILES_PATH: files/
   RELEASE_PREFIX: main-nss
   NSS_PACKAGES_REPOSITORY: qosmio/nss-packages
@@ -74,19 +74,11 @@ jobs:
           mv custom_repo/${{ env.CONFIG_FILE }} .config
           make defconfig -j$(nproc)
 
-      - name: Append CONFIG_RELR=y to target/linux/qualcommax/config-6.6
-        run: echo "CONFIG_RELR=y" >> target/linux/qualcommax/config-6.6
-
-      - name: Include custom files
-        run: |
-          mkdir -p ${{ env.CUSTOM_FILES_PATH }}
-          mv custom_repo/${{ env.CUSTOM_FILES_PATH }}* ${{ env.CUSTOM_FILES_PATH }}
-
       - name: Download dependencies
         run: make download V=s -j$(nproc)
 
       - name: Build the firmware image
-        run: make world V=s -j$(nproc)
+        run: make world -j$(nproc)
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
