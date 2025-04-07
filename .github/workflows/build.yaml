@@ -13,7 +13,7 @@ on:
 env:
   REMOTE_REPOSITORY: qosmio/openwrt-ipq
   REMOTE_BRANCH: main-nss
-  CONFIG_FILE: ax3600.config
+  CONFIG_FILE: ax9000.config
   CUSTOM_FILES_PATH: files/
   RELEASE_PREFIX: main-nss
   NSS_PACKAGES_REPOSITORY: qosmio/nss-packages
@@ -94,19 +94,6 @@ jobs:
         with:
           path: "builder_repo"
 
-      - name: Add custom patches
-        run: |
-          if [ "$(ls builder_repo/patches)" ]; then
-            mv builder_repo/patches/* ./
-            for patch in *.patch; do
-              git apply --verbose "$patch"
-              echo "=== Diff after applying $patch ==="
-              git diff HEAD
-            done
-            echo "Changed files after patch application:"
-            git status
-          fi
-
       - name: Update and install feeds
         run: |
           ./scripts/feeds update -a
@@ -117,16 +104,11 @@ jobs:
           mv builder_repo/${{ env.CONFIG_FILE }} .config
           make defconfig -j$(nproc)
 
-      - name: Include custom files
-        run: |
-          mkdir -p ${{ env.CUSTOM_FILES_PATH }}
-          mv builder_repo/${{ env.CUSTOM_FILES_PATH }}* ${{ env.CUSTOM_FILES_PATH }}
-
       - name: Download dependencies
-        run: make download V=s -j$(nproc)
+        run: make download -j$(nproc)
 
       - name: Build the firmware image
-        run: make world V=s -j$(nproc)
+        run: make world -j$(nproc)
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -169,10 +151,6 @@ jobs:
             **Repository:** [${{ env.NSS_PACKAGES_REPOSITORY }}](https://github.com/${{ env.NSS_PACKAGES_REPOSITORY }})
             **Branch:** `${{ env.NSS_PACKAGES_REPOSITORY_BRANCH }}`
             **Commit:** `${{ needs.check_commits.outputs.nss_packages_repo_latest_commit_sha }}`
-
-            ### 📝 Build Information
-            - **Target:** [Xiaomi Mi AIoT Router AX3600](https://openwrt.org/toh/xiaomi/ax3600)
-            - **Configuration:** [`${{ env.CONFIG_FILE }}`](${{ env.CONFIG_FILE }})
 
             ### 📋 Notes
             - Automated build triggered by ${{ github.event_name }}
