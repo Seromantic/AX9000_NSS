@@ -22,8 +22,7 @@ defaults:
 env:
   REMOTE_REPOSITORY: qosmio/openwrt-ipq
   REMOTE_BRANCH: main-nss
-  CONFIG_FILE: ax3600.config
-  CUSTOM_FILES_PATH: files
+  CONFIG_FILE: ax9000.config
   RELEASE_PREFIX: main-nss
   NSS_PACKAGES_REPOSITORY: qosmio/nss-packages
   NSS_PACKAGES_REPOSITORY_BRANCH: NSS-12.5-K6.x
@@ -96,42 +95,25 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Apply custom patches
-        run: |
-          set -euo pipefail
-
-          if compgen -G 'builder_repo/patches/*.patch' >/dev/null; then
-            while IFS= read -r patch; do
-              git apply --verbose "$patch"
-            done < <(find builder_repo/patches -maxdepth 1 -type f -name '*.patch' | sort)
-          fi
-
       - name: Update and install feeds
         run: |
           set -euo pipefail
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Prepare configuration and custom files
+      - name: Prepare configuration
         run: |
           set -euo pipefail
 
           cp "builder_repo/${CONFIG_FILE}" .config
           make defconfig
 
-          if [ -d "builder_repo/${CUSTOM_FILES_PATH}" ]; then
-            mkdir -p "${CUSTOM_FILES_PATH}"
-            rsync -a "builder_repo/${CUSTOM_FILES_PATH}/" "${CUSTOM_FILES_PATH}/"
-          fi
-
       - name: Build firmware
         run: |
           set -euo pipefail
 
-          make download -j"$(nproc)" V=s
-          if ! make -j"$(nproc)"; then
-            make -j1 V=s
-          fi
+          make download -j"$(nproc)"
+          make -j"$(nproc)"
 
       - name: Upload images
         uses: actions/upload-artifact@v4
