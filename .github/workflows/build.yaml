@@ -22,8 +22,7 @@ env:
   NSS_PACKAGES_REPOSITORY_BRANCH: NSS-12.5-K6.x
 
   # Build Configuration
-  CONFIG_FILE: ax3600.config
-  CUSTOM_FILES_PATH: files
+  CONFIG_FILE: ax9000.conf
 
   # Release Configuration
   RELEASE_PREFIX: main-nss
@@ -145,13 +144,6 @@ jobs:
           sed -i 's/^CONFIG_FEED_luci_extra=.*/# CONFIG_FEED_luci_extra is not set/' .config
           sed -i 's/^CONFIG_FEED_qosmio=.*/# CONFIG_FEED_qosmio is not set/' .config
 
-          # Add custom files
-          if [ -d "../builder_repo/${CUSTOM_FILES_PATH}" ]; then
-            echo "Adding custom files..."
-            mkdir -p "${CUSTOM_FILES_PATH}"
-            rsync -a "../builder_repo/${CUSTOM_FILES_PATH}/" "${CUSTOM_FILES_PATH}/"
-          fi
-
           # Set reproducible build parameters
           main_epoch=$(git show -s --format=%ct HEAD)
           cat >> "$GITHUB_ENV" <<EOF
@@ -168,13 +160,10 @@ jobs:
           set -euo pipefail
 
           echo "Starting download..."
-          make download -j"$(nproc)" V=s
+          make download -j"$(nproc)"
 
           echo "Starting build..."
-          if ! make -j"$(nproc)"; then
-            echo "Build failed, retrying with single thread for debugging..."
-            make -j1 V=s
-          fi
+          make -j"$(nproc)"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v5
