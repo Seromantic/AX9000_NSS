@@ -125,12 +125,6 @@ jobs:
           cp "../builder_repo/${CONFIG_FILE}" .config
           make defconfig
 
-          # Ensure correct permissions for sshd_config
-            if [ -f "${CUSTOM_FILES_PATH}/etc/ssh/sshd_config" ]; then
-              chmod 0600 "${CUSTOM_FILES_PATH}/etc/ssh/sshd_config"
-            fi
-          fi
-
           # Set reproducible build parameters
           main_epoch=$(git show -s --format=%ct HEAD)
           cat >> "$GITHUB_ENV" <<EOF
