@@ -1,216 +1,126 @@
-name: OpenWrt Build
+name: Build OpenWrt for specific target and release
+
+permissions:
+  contents: write
+  actions: write
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
   schedule:
     - cron: "0 0 * * *"
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
-
-permissions:
-  contents: read
-
 env:
-  # Repository Configuration
   REMOTE_REPOSITORY: qosmio/openwrt-ipq
   REMOTE_BRANCH: main-nss
+  CONFIG_FILE: ax9000.conf
+  RELEASE_PREFIX: main-nss
   NSS_PACKAGES_REPOSITORY: qosmio/nss-packages
   NSS_PACKAGES_REPOSITORY_BRANCH: NSS-12.5-K6.x
 
-  # Build Configuration
-  CONFIG_FILE: ax9000.conf
-
-  # Release Configuration
-  RELEASE_PREFIX: main-nss
-  ARTIFACT_RETENTION_DAYS: 7
-  RELEASES_TO_KEEP: 2
-
 jobs:
-  check_updates:
-    name: Check for Updates
+  check_commits:
+    name: Check for new commits
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    env:
-      GH_TOKEN: ${{ github.token }}
     outputs:
-      build_required: ${{ steps.check.outputs.build_required }}
-      main_sha: ${{ steps.check.outputs.main_sha }}
-      nss_sha: ${{ steps.check.outputs.nss_sha }}
+      new_commits: ${{ steps.check_commits.outputs.new_commits }}
+      latest_commit_sha: ${{ steps.check_commits.outputs.latest_commit_sha }}
+      nss_packages_repo_new_commits: ${{ steps.check_commits.outputs.nss_packages_repo_new_commits }}
+      nss_packages_repo_latest_commit_sha: ${{ steps.check_commits.outputs.nss_packages_repo_latest_commit_sha }}
     steps:
-      - name: Check upstream changes
-        id: check
+      - name: Check for new commits in both repositories
+        id: check_commits
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
+          latest_sha=$(gh api "repos/${{ env.REMOTE_REPOSITORY }}/commits/${{ env.REMOTE_BRANCH }}" --jq .sha)
+          packages_sha=$(gh api "repos/${{ env.NSS_PACKAGES_REPOSITORY }}/commits/${{ env.NSS_PACKAGES_REPOSITORY_BRANCH }}" --jq .sha)
+          release_body=$(gh api "repos/${{ github.repository }}/releases/latest" --jq .body 2>/dev/null || echo "")
 
-          # Fetch upstream SHAs
-          main_sha=$(gh api "repos/${REMOTE_REPOSITORY}/commits/${REMOTE_BRANCH}" --jq .sha)
-          nss_sha=$(gh api "repos/${NSS_PACKAGES_REPOSITORY}/commits/${NSS_PACKAGES_REPOSITORY_BRANCH}" --jq .sha)
+          new_commits=$([[ "$release_body" == *"$latest_sha"* ]] && echo "false" || echo "true")
+          nss_new_commits=$([[ "$release_body" == *"$packages_sha"* ]] && echo "false" || echo "true")
 
-          # Get latest release body safely
-          latest_release_body=$(gh release view --repo "${GITHUB_REPOSITORY}" --json body --jq .body 2>/dev/null || echo "")
+          echo "new_commits=$new_commits" >> "$GITHUB_OUTPUT"
+          echo "latest_commit_sha=$latest_sha" >> "$GITHUB_OUTPUT"
+          echo "nss_packages_repo_new_commits=$nss_new_commits" >> "$GITHUB_OUTPUT"
+          echo "nss_packages_repo_latest_commit_sha=$packages_sha" >> "$GITHUB_OUTPUT"
 
-          # Determine if build is required
-          build_required=true
-          if [[ "${GITHUB_EVENT_NAME}" != "workflow_dispatch" ]] && \
-             [[ "$latest_release_body" == *"$main_sha"* ]] && \
-             [[ "$latest_release_body" == *"$nss_sha"* ]]; then
-            build_required=false
-          fi
-
-          echo "Build required: $build_required"
-          echo "Main SHA: $main_sha"
-          echo "NSS SHA: $nss_sha"
-
-          # Output results
-          cat >> "$GITHUB_OUTPUT" <<EOF
-          build_required=$build_required
-          main_sha=$main_sha
-          nss_sha=$nss_sha
-          EOF
-
-  build_firmware:
-    name: Build Firmware
-    needs: check_updates
-    if: needs.check_updates.outputs.build_required == 'true' || github.event_name == 'workflow_dispatch'
+  build:
+    name: Build OpenWrt
+    needs: check_commits
+    if: github.event_name == 'workflow_dispatch' || needs.check_commits.outputs.new_commits == 'true' || needs.check_commits.outputs.nss_packages_repo_new_commits == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 360
-    permissions:
-      contents: write
-      actions: read
-    outputs:
-      release_tag: ${{ steps.release.outputs.release_tag }}
-    env:
-      MAIN_SHA: ${{ needs.check_updates.outputs.main_sha }}
-      NSS_SHA: ${{ needs.check_updates.outputs.nss_sha }}
-      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Install dependencies
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git \
-            libncurses5-dev libssl-dev python3-setuptools rsync swig unzip zlib1g-dev file wget
-
-      - name: Checkout source code
-        uses: actions/checkout@v6
+        run: sudo apt update && sudo apt install -y --no-install-recommends build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev python3-setuptools rsync swig unzip zlib1g-dev file wget && sudo apt full-upgrade -y
+      - name: Checkout remote repository
+        uses: actions/checkout@v4
         with:
           repository: ${{ env.REMOTE_REPOSITORY }}
-          ref: ${{ env.MAIN_SHA }}
-          fetch-depth: 0
-          path: openwrt
+          ref: ${{ env.REMOTE_BRANCH }}
 
-      - name: Checkout builder assets
-        uses: actions/checkout@v6
+      - name: Checkout current repository
+        uses: actions/checkout@v4
         with:
-          path: builder_repo
-          fetch-depth: 0
+          path: "builder_repo"
 
-      - name: Prepare build environment
-        working-directory: openwrt
+      - name: Update and install feeds
+        run: ./scripts/feeds update -a && ./scripts/feeds install -a
+
+      - name: Setup configuration
         run: |
-          set -euo pipefail
+          mv builder_repo/${{ env.CONFIG_FILE }} .config
+          make defconfig -j$(nproc)
 
-          # Update and install feeds
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
-
-          # Configure
-          cp "../builder_repo/${CONFIG_FILE}" .config
-          make defconfig
-
-          # Set reproducible build parameters
-          main_epoch=$(git show -s --format=%ct HEAD)
-          cat >> "$GITHUB_ENV" <<EOF
-          SOURCE_DATE_EPOCH=$main_epoch
-          TZ=UTC
-          LC_ALL=C
-          KBUILD_BUILD_USER=builder
-          KBUILD_BUILD_HOST=github
-          EOF
-
-      - name: Build
-        working-directory: openwrt
+      - name: Build firmware
         run: |
-          set -euo pipefail
-
-          echo "Starting download..."
-          make download -j"$(nproc)"
-
-          echo "Starting build..."
-          if ! make -j"$(nproc)"; then
-            echo "Build failed, retrying with single thread for debugging..."
-            make -j1 V=s
-          fi
+          make download -j$(nproc)
+          make -j$(nproc)
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v4
         with:
           name: ipq807x-images
-          path: openwrt/bin/targets/qualcommax/ipq807x
-          if-no-files-found: error
-          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+          path: bin/targets/qualcommax/ipq807x
 
-      - name: Publish release
-        id: release
-        run: |
-          set -euo pipefail
-
-          date=$(date -u +%F)
-          timestamp=$(date -u +%Y%m%dT%H%M%SZ)
-          tag_name="${RELEASE_PREFIX}-${timestamp}-${GITHUB_RUN_ID}"
-          echo "release_tag=$tag_name" >> "$GITHUB_OUTPUT"
-
-          # Create release notes
-          cat > release_notes.md <<EOF
-          ## OpenWrt Automated Build
-          - **Date**: $date
-          - **Main Commit**: \`${{ needs.check_updates.outputs.main_sha }}\`
-          - **NSS Commit**: \`${{ needs.check_updates.outputs.nss_sha }}\`
-          - **Trigger**: \`${{ github.event_name }}\`
-          EOF
-
-          gh release create "$tag_name" \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "OpenWrt Build $date" \
-            --notes-file release_notes.md \
-            $(find openwrt/bin/targets/qualcommax/ipq807x/ -type f -not -path "*/packages/*")
-
-  cleanup_releases:
-    name: Cleanup Old Releases
-    needs: build_firmware
-    if: always()
+  release:
+    name: Create release
+    needs: [check_commits, build]
+    if: needs.build.result == 'success'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Prune releases
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ipq807x-images
+          path: firmware
+      - name: Set release date
+        run: echo "RELEASE_DATE=$(date +%F)" >> $GITHUB_ENV
+      - name: Publish release
+        uses: softprops/action-gh-release@master
+        with:
+          files: firmware/*
+          tag_name: ${{ env.RELEASE_PREFIX }}-${{ env.RELEASE_DATE }}
+          name: 🚀 OpenWrt Build Release ${{ env.RELEASE_DATE }}
+          body: |
+            ## 📦 OpenWrt Automated Build Release
+
+            **Build Date:** ${{ env.RELEASE_DATE }}
+
+            ### 🔄 Main Repository
+            **Repository:** [${{ env.REMOTE_REPOSITORY }}](https://github.com/${{ env.REMOTE_REPOSITORY }})
+            **Branch:** `${{ env.REMOTE_BRANCH }}`
+            **Commit:** `${{ needs.check_commits.outputs.latest_commit_sha }}`
+
+            ### 📦 NSS Packages
+            **Repository:** [${{ env.NSS_PACKAGES_REPOSITORY }}](https://github.com/${{ env.NSS_PACKAGES_REPOSITORY }})
+            **Branch:** `${{ env.NSS_PACKAGES_REPOSITORY_BRANCH }}`
+            **Commit:** `${{ needs.check_commits.outputs.nss_packages_repo_latest_commit_sha }}`
+
+      - name: Clean up old releases
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
-
-          keep="${RELEASES_TO_KEEP:-2}"
-          current_tag="${{ needs.build_firmware.outputs.release_tag }}"
-
-          echo "Keeping last $keep releases..."
-          if [ -n "$current_tag" ]; then
-            echo "Protecting current release: $current_tag"
-          fi
-
-          # Fetch and filter releases to delete
-          gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" | \
-          jq -r --argjson keep "$keep" --arg current_tag "$current_tag" '
-            map(select(.draft | not)) | sort_by(.created_at) | reverse | .[$keep:] | .[] | select(.tag_name != $current_tag) | "\(.id) \(.tag_name)"
-          ' | while read -r release_id tag_name; do
-            echo "Deleting release $release_id (tag: $tag_name)"
-            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/${release_id}"
-            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/tags/${tag_name}" || true
+          gh api repos/${{ github.repository }}/releases --paginate --jq '.[2:] | .[] | "\(.id) \(.tag_name)"' | while read id tag; do
+            gh api -X DELETE "repos/${{ github.repository }}/releases/$id" && gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/$tag" 2>/dev/null || true
           done
