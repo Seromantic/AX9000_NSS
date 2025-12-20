@@ -6,9 +6,6 @@ permissions:
 
 on:
   workflow_dispatch:
-  push:
-  schedule:
-    - cron: "0 0 * * *"
 
 env:
   REMOTE_REPOSITORY: qosmio/openwrt-ipq
