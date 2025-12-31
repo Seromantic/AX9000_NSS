@@ -1,6 +1,6 @@
 # Qualcommax NSS Builder
 
-**Automated OpenWrt Firmware Builder for Xiaomi AX3600 (IPQ807x)**
+**Automated OpenWrt Firmware Builder for Xiaomi AX9000 (IPQ807x)**
 
 ![Build Status](https://img.shields.io/github/actions/workflow/status/JuliusBairaktaris/Qualcommax_NSS_Builder/build.yaml?style=flat-square)
 
