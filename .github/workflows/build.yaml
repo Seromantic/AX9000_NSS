@@ -2,10 +2,6 @@ name: OpenWrt Build
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-  schedule:
-    - cron: "0 */2 * * *"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -22,8 +18,7 @@ env:
   NSS_PACKAGES_REPOSITORY_BRANCH: NSS-12.5-K6.x
 
   # Build Configuration
-  CONFIG_FILE: ax3600.config
-  CUSTOM_FILES_PATH: files
+  CONFIG_FILE: ax9000.conf
 
   # Release Configuration
   RELEASE_PREFIX: main-nss
@@ -118,46 +113,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Apply patches if they exist
-          if compgen -G '../builder_repo/patches/*.patch' >/dev/null; then
-            echo "Applying patches..."
-            while IFS= read -r patch; do
-              echo "Applying $patch"
-              git apply --verbose "$patch"
-            done < <(find ../builder_repo/patches -maxdepth 1 -type f -name '*.patch' | sort)
-          fi
-
-          # Add custom feed
-          if [ ! -f feeds.conf ]; then
-            cp feeds.conf.default feeds.conf
-          fi
-          echo "src-git qosmio https://github.com/qosmio/packages-extra" >> feeds.conf
-
           # Update and install feeds
-          ./scripts/feeds update qosmio
-          ./scripts/feeds install -a -p qosmio
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
           # Configure
           cp "../builder_repo/${CONFIG_FILE}" .config
           make defconfig
-
-          # Disable bundling custom repos
-          sed -i 's/^CONFIG_FEED_luci_extra=.*/# CONFIG_FEED_luci_extra is not set/' .config
-          sed -i 's/^CONFIG_FEED_qosmio=.*/# CONFIG_FEED_qosmio is not set/' .config
-
-          # Add custom files
-          if [ -d "../builder_repo/${CUSTOM_FILES_PATH}" ]; then
-            echo "Adding custom files..."
-            mkdir -p "${CUSTOM_FILES_PATH}"
-            rsync -a "../builder_repo/${CUSTOM_FILES_PATH}/" "${CUSTOM_FILES_PATH}/"
-
-            # Ensure correct permissions for sshd_config
-            if [ -f "${CUSTOM_FILES_PATH}/etc/ssh/sshd_config" ]; then
-              chmod 0600 "${CUSTOM_FILES_PATH}/etc/ssh/sshd_config"
-            fi
-          fi
 
           # Set reproducible build parameters
           main_epoch=$(git show -s --format=%ct HEAD)
