@@ -113,6 +113,11 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Revert Commit 34836df
+          git config --global user.name "sero"
+          git config --global user.email "sero@blank.com"
+          git revert 34836dffb1 --no-edit
+          
           # Update and install feeds
           ./scripts/feeds update -a
           ./scripts/feeds install -a
