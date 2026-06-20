@@ -110,7 +110,7 @@ jobs:
           set -euo pipefail
 
           # Remove KTLS
-          sed -i '/^config OPENSSL_KTLS$/,/^$/d' ./package/libs/openssl/Config.in
+          sed -i 's/^[[:space:]]*select PACKAGE_kmod-tls$/\tdepends on PACKAGE_kmod-tls/' ./package/libs/openssl/Config.in
           
           # Update and install feeds
           ./scripts/feeds update -a
