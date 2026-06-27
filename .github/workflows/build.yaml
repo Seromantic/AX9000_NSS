@@ -84,7 +84,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Free disk spsce
-        uses: actions/checkout@v6
+        uses: jlumbroso/free-disk-space@main
         with:
           tool-cache: true
           android: true
