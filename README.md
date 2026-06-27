@@ -2,11 +2,11 @@
 
 ### Automated OpenWrt Firmware with NSS Hardware Acceleration for Xiaomi AX3600 (IPQ807x)
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/JuliusBairaktaris/Qualcommax_NSS_Builder/build.yaml?branch=main&style=flat-square&logo=github&label=Build)](https://github.com/JuliusBairaktaris/Qualcommax_NSS_Builder/actions/workflows/build.yaml)
-[![License](https://img.shields.io/github/license/JuliusBairaktaris/Qualcommax_NSS_Builder?style=flat-square&label=License)](LICENSE)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/Seromantic/AX9000_NSS/build.yaml?branch=main&style=flat-square&logo=github&label=Build)](https://github.com/Seromantic/AX9000_NSS/actions/workflows/build.yaml)
+[![License](https://img.shields.io/github/license/Seromantic/AX9000_NSS?style=flat-square&label=License)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/JuliusBairaktaris/Qualcommax_NSS_Builder?style=flat-square&logo=github&label=Stars)](https://github.com/JuliusBairaktaris/Qualcommax_NSS_Builder/stargazers)
-[![Last Commit](https://img.shields.io/github/last-commit/JuliusBairaktaris/Qualcommax_NSS_Builder?style=flat-square&label=Last%20Commit)](https://github.com/JuliusBairaktaris/Qualcommax_NSS_Builder/commits/main)
-[![Downloads](https://img.shields.io/github/downloads/JuliusBairaktaris/Qualcommax_NSS_Builder/total?style=flat-square&logo=github&label=Downloads)](https://github.com/JuliusBairaktaris/Qualcommax_NSS_Builder/releases/latest)
+[![Last Commit](https://img.shields.io/github/last-commit/Seromantic/AX9000_NSS?style=flat-square&label=Last%20Commit)](https://github.com/Seromantic/AX9000_NSS/commits/main)
+[![Downloads](https://img.shields.io/github/downloads/Seromantic/AX9000_NSS/total?style=flat-square&logo=github&label=Downloads)](https://github.com/Seromantic/AX9000_NSS/releases/latest)
 
 Pre-built, hardened OpenWrt firmware images for the **Xiaomi AX3600** with full **Qualcomm NSS (Network Subsystem) hardware offloading** — delivering **2-5x network throughput** compared to stock CPU-based packet processing. Builds run automatically via GitHub Actions against the latest [qosmio/openwrt-ipq](https://github.com/qosmio/openwrt-ipq) sources. Just download and flash.
 
