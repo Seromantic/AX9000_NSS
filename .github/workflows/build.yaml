@@ -83,6 +83,17 @@ jobs:
       NSS_SHA: ${{ needs.check_updates.outputs.nss_sha }}
       GH_TOKEN: ${{ github.token }}
     steps:
+      - name: Free disk spsce
+        uses: actions/checkout@v6
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - name: Install dependencies
         run: |
           set -euo pipefail
