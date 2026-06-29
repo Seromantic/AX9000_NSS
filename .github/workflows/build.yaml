@@ -12,7 +12,7 @@ permissions:
 env:
   # Repository Configuration
   REMOTE_REPOSITORY: qosmio/openwrt-ipq
-  REMOTE_BRANCH: main-nss
+  REMOTE_BRANCH: 25.12-nss
   NSS_PACKAGES_REPOSITORY: qosmio/nss-packages
   NSS_PACKAGES_REPOSITORY_BRANCH: NSS-12.5-K6.x
 
