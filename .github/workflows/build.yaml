@@ -20,7 +20,7 @@ env:
   CONFIG_FILE: ax9000.config
 
   # Release Configuration
-  RELEASE_PREFIX: main-nss
+  RELEASE_PREFIX: 25.12-nss
   ARTIFACT_RETENTION_DAYS: 7
   RELEASES_TO_KEEP: 2
 
