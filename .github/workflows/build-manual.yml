@@ -1,4 +1,4 @@
-name: OpenWrt Build
+name: OpenWrt Build Arm64
 
 on:
   workflow_dispatch:
