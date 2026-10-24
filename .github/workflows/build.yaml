@@ -82,6 +82,7 @@ jobs:
       MAIN_SHA: ${{ needs.check_updates.outputs.main_sha }}
       NSS_SHA: ${{ needs.check_updates.outputs.nss_sha }}
       GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - name: Free disk spsce
         uses: jlumbroso/free-disk-space@main
