@@ -1,0 +1,196 @@
+name: OpenWrt Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Build runner architecture"
+        type: choice
+        required: true
+        default: ubuntu-26.04
+        options:
+          - ubuntu-26.04
+          - ubuntu-26.04-arm
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: read
+
+env:
+  # Repository Configuration
+  REMOTE_REPOSITORY: qosmio/openwrt-ipq
+  REMOTE_BRANCH: 25.12-nss
+  NSS_PACKAGES_REPOSITORY: qosmio/nss-packages
+  NSS_PACKAGES_REPOSITORY_BRANCH: NSS-12.5-K6.x
+
+  # Build Configuration
+  CONFIG_FILE: ax9000.config
+
+  # Release Configuration
+  RELEASE_PREFIX: 25.12-nss
+  ARTIFACT_RETENTION_DAYS: 7
+  RELEASES_TO_KEEP: 2
+
+jobs:
+  get_commits:
+    name: Get upstream commits
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    outputs:
+      main_sha: ${{ steps.check.outputs.main_sha }}
+      nss_sha: ${{ steps.check.outputs.nss_sha }}
+    steps:
+      - name: Get upstream commits
+        id: check
+        run: |
+          set -euo pipefail
+
+          # Fetch upstream SHAs
+          main_sha=$(gh api "repos/${REMOTE_REPOSITORY}/commits/${REMOTE_BRANCH}" --jq .sha)
+          nss_sha=$(gh api "repos/${NSS_PACKAGES_REPOSITORY}/commits/${NSS_PACKAGES_REPOSITORY_BRANCH}" --jq .sha)
+
+          echo "Main SHA: $main_sha"
+          echo "NSS SHA: $nss_sha"
+
+          # Output results
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+          echo "nss_sha=$nss_sha" >> "$GITHUB_OUTPUT"
+
+  build_firmware:
+    name: Build Firmware
+    needs: get_commits
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 360
+    permissions:
+      contents: write
+      actions: read
+    outputs:
+      release_tag: ${{ steps.release.outputs.release_tag }}
+    env:
+      MAIN_SHA: ${{ needs.get_commits.outputs.main_sha }}
+      NSS_SHA: ${{ needs.get_commits.outputs.nss_sha }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Free disk spsce
+        uses: jlumbroso/free-disk-space@main
+        with:
+          preinstalled-runtimes: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            bzip2 g++ gawk gcc git glibc-source libncurses-dev make rsync
+
+      - name: Checkout source code
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.REMOTE_REPOSITORY }}
+          ref: ${{ env.MAIN_SHA }}
+          fetch-depth: 0
+          path: openwrt
+
+      - name: Checkout builder assets
+        uses: actions/checkout@v6
+        with:
+          path: builder_repo
+
+      - name: Prepare build environment
+        working-directory: openwrt
+        run: |
+          set -euo pipefail
+
+          # Remove KTLS
+          sed -i 's/^[[:space:]]*select PACKAGE_kmod-tls$/\tdepends on PACKAGE_kmod-tls/' ./package/libs/openssl/Config.in
+          
+          # Update and install feeds
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+          # Configure
+          cp "../builder_repo/${CONFIG_FILE}" .config
+          make defconfig V=s
+
+          # Set reproducible build parameters
+          main_epoch=$(git show -s --format=%ct HEAD)
+          echo "SOURCE_DATE_EPOCH=$main_epoch" >> "$GITHUB_ENV"
+          echo "TZ=UTC" >> "$GITHUB_ENV"
+          echo "LC_ALL=C" >> "$GITHUB_ENV"
+          echo "KBUILD_BUILD_USER=builder" >> "$GITHUB_ENV"
+          echo "KBUILD_BUILD_HOST=github" >> "$GITHUB_ENV"
+
+      - name: Build
+        working-directory: openwrt
+        run: |
+          set -euo pipefail
+
+          echo "Starting download..."
+          for attempt in 1 2 3; do
+            make download -j"$(nproc)" V=s && break
+            echo "Download attempt $attempt failed, retrying..."
+            sleep 5
+          done
+
+          echo "Starting build..."
+          make -j$(nproc)
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ipq807x-images
+          path: openwrt/bin/targets/qualcommax/ipq807x
+          if-no-files-found: error
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+
+      - name: Publish release
+        id: release
+        run: |
+          set -euo pipefail
+
+          date=$(date -u +%F)
+          timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+          tag_name="${RELEASE_PREFIX}-${timestamp}-${GITHUB_RUN_ID}"
+          echo "release_tag=$tag_name" >> "$GITHUB_OUTPUT"
+
+          # Create release notes
+          {
+            echo "## OpenWrt Automated Build"
+            echo "- **Date**: $date"
+            echo "- **Main Commit**: \`${{ needs.get_commits.outputs.main_sha }}\`"
+            echo "- **NSS Commit**: \`${{ needs.get_commits.outputs.nss_sha }}\`"
+            echo "- **Trigger**: \`${{ github.event_name }}\`"
+          } > release_notes.md
+
+          mapfile -t assets < <(find openwrt/bin/targets/qualcommax/ipq807x/ -type f -not -path "*/packages/*")
+          gh release create "$tag_name" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "OpenWrt Build $date" \
+            --notes-file release_notes.md \
+            "${assets[@]}"
+
+          echo "Verifying release..."
+          gh release view "$tag_name" || echo "WARNING: Release not found immediately after creation!"
+
+      - name: Delete older releases
+        env:
+          KEEP: ${{ env.RELEASES_TO_KEEP }}
+          CURRENT: ${{ steps.release.outputs.release_tag }}
+        run: |
+          gh release list --limit 100 --exclude-drafts --json tagName,publishedAt --order desc | \
+          jq -r --argjson keep "${KEEP:-2}" --arg current "$CURRENT" \
+            'sort_by(.publishedAt) | reverse | .[$keep:] | .[].tagName | select(. != $current)' | \
+          while read -r tag; do gh release delete "$tag" --yes --cleanup-tag; done
