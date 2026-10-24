@@ -7,7 +7,7 @@ on:
         description: "Build runner architecture"
         type: choice
         required: true
-        default: ubuntu-26.04
+        default: ubuntu-26.04-arm
         options:
           - ubuntu-26.04
           - ubuntu-26.04-arm
